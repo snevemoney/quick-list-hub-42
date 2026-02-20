@@ -24,23 +24,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Only set local state inside the callback — never make async
+    // Supabase calls here; it deadlocks the internal auth lock.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      (_event, session) => {
         setSession(session);
-        if (session?.user) {
-          // Ensure profile exists
-          const { data } = await supabase
-            .from("profiles")
-            .select("id")
-            .eq("id", session.user.id)
-            .single();
-          if (!data) {
-            await supabase.from("profiles").insert({
-              id: session.user.id,
-              display_name: session.user.email?.split("@")[0] || "User",
-            });
-          }
-        }
         setLoading(false);
       }
     );
@@ -52,6 +40,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Ensure profile row exists — runs outside the auth lock.
+  // Uses upsert to handle races and retries gracefully.
+  useEffect(() => {
+    if (!session?.user) return;
+    const uid = session.user.id;
+    const name = session.user.email?.split("@")[0] || "User";
+    supabase
+      .from("profiles")
+      .upsert({ id: uid, display_name: name }, { onConflict: "id", ignoreDuplicates: true });
+  }, [session?.user?.id]);
 
   const signOut = async () => {
     await supabase.auth.signOut();

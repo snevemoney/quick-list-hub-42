@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { getListingImageUrl } from "@/lib/listing";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +65,13 @@ export default function ListingDetail() {
       setMessage("");
       setContactOpen(false);
     },
+    onError: (err: any) => {
+      toast({
+        title: "Failed to send",
+        description: err?.message || String(err),
+        variant: "destructive",
+      });
+    },
   });
 
   if (isLoading) {
@@ -80,8 +88,9 @@ export default function ListingDetail() {
     return <div className="container mx-auto px-4 py-20 text-center text-muted-foreground">Listing not found</div>;
   }
 
-  const images = listing.images as string[];
+  const images = (listing.images as string[]) ?? [];
   const isOwner = user?.id === listing.owner_id;
+  const mainImageUrl = getListingImageUrl(listing);
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-2xl">
@@ -94,7 +103,7 @@ export default function ListingDetail() {
                 <CarouselItem key={i}>
                   <div className="aspect-video rounded-lg overflow-hidden bg-muted">
                     <img
-                      src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/listing-images/${img}`}
+                      src={img.startsWith("/") ? img : `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/listing-images/${img}`}
                       alt={`${listing.title} ${i + 1}`}
                       className="w-full h-full object-cover"
                     />
@@ -111,8 +120,12 @@ export default function ListingDetail() {
           </Carousel>
         </div>
       ) : (
-        <div className="aspect-video rounded-lg bg-muted mb-6 flex items-center justify-center text-muted-foreground">
-          No images
+        <div className="aspect-video rounded-lg bg-muted mb-6 overflow-hidden">
+          <img
+            src={mainImageUrl}
+            alt={listing.title}
+            className="w-full h-full object-cover"
+          />
         </div>
       )}
 

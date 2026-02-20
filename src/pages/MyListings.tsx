@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { getListingImageUrl } from "@/lib/listing";
 import { useAuth, RequireAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -67,10 +68,7 @@ function MyListingsContent() {
       ) : (
         <div className="space-y-3">
           {listings.map((listing) => {
-            const images = listing.images as string[];
-            const imgUrl = images?.[0]
-              ? `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/listing-images/${images[0]}`
-              : "/placeholder.svg";
+            const imgUrl = getListingImageUrl(listing);
             return (
               <Card key={listing.id} className="overflow-hidden">
                 <CardContent className="p-3 flex gap-3">

@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, RequireAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ function PayListingForm() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data: listing } = useQuery({
     queryKey: ["listing", id],
@@ -23,14 +24,12 @@ function PayListingForm() {
 
   const payMutation = useMutation({
     mutationFn: async () => {
-      // Mark listing as paid
       const { error: updateError } = await supabase
         .from("listings")
         .update({ paid: true })
         .eq("id", id!);
       if (updateError) throw updateError;
 
-      // Create payment record
       const { error: payError } = await supabase.from("payments").insert({
         user_id: user!.id,
         listing_id: id!,
@@ -41,6 +40,9 @@ function PayListingForm() {
       if (payError) throw payError;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["listings", "public"] });
+      queryClient.invalidateQueries({ queryKey: ["my-listings"] });
+      queryClient.invalidateQueries({ queryKey: ["listing", id] });
       toast({ title: "Payment successful!", description: "Your listing is now live." });
       navigate("/my-listings");
     },
@@ -86,6 +88,9 @@ function PayListingForm() {
           </Button>
           <p className="text-xs text-center text-muted-foreground">
             This is a demo payment. No real charges will be made.
+          </p>
+          <p className="text-xs text-center text-muted-foreground">
+            Demo flow — Stripe can be plugged in later.
           </p>
         </CardContent>
       </Card>

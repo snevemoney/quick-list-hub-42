@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { getListingImageUrl } from "@/lib/listing";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
@@ -87,10 +88,7 @@ export default function Home() {
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filtered.map((listing) => {
-            const images = listing.images as string[];
-            const imgUrl = images?.[0]
-              ? `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/listing-images/${images[0]}`
-              : "/placeholder.svg";
+            const imgUrl = getListingImageUrl(listing);
             return (
               <Link key={listing.id} to={`/listing/${listing.id}`}>
                 <Card className="overflow-hidden hover:shadow-md transition-shadow group">
