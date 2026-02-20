@@ -13,6 +13,7 @@ import EditListing from "./pages/EditListing";
 import PayListing from "./pages/PayListing";
 import MyListings from "./pages/MyListings";
 import Messages from "./pages/Messages";
+import Seed from "./pages/Seed";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
               <Route path="/pay/:id" element={<PayListing />} />
               <Route path="/my-listings" element={<MyListings />} />
               <Route path="/messages" element={<Messages />} />
+              <Route path="/seed" element={<Seed />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Layout>
