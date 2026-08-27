@@ -2,8 +2,12 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, RequireAuth } from "@/lib/auth";
+import { centsToDollarString, formatListingPrice, LISTING_FEE_CENTS } from "@/lib/money";
+import { isUuid } from "@/lib/validation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { QueryError } from "@/components/QueryError";
 import { CheckCircle, CreditCard } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
@@ -12,9 +16,11 @@ function PayListingForm() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const validId = isUuid(id);
 
-  const { data: listing } = useQuery({
+  const { data: listing, isLoading, isError, refetch } = useQuery({
     queryKey: ["listing", id],
+    enabled: validId,
     queryFn: async () => {
       const { data, error } = await supabase.from("listings").select("*").eq("id", id!).single();
       if (error) throw error;
@@ -24,16 +30,14 @@ function PayListingForm() {
 
   const payMutation = useMutation({
     mutationFn: async () => {
-      const { error: updateError } = await supabase
-        .from("listings")
-        .update({ paid: true })
-        .eq("id", id!);
+      if (!user || !listing || user.id !== listing.owner_id) throw new Error("Not authorized");
+      const { error: updateError } = await supabase.from("listings").update({ paid: true }).eq("id", id!);
       if (updateError) throw updateError;
 
       const { error: payError } = await supabase.from("payments").insert({
-        user_id: user!.id,
+        user_id: user.id,
         listing_id: id!,
-        amount: 5,
+        amount: Number(centsToDollarString(LISTING_FEE_CENTS)),
         currency: "usd",
         status: "paid_demo",
       });
@@ -46,7 +50,30 @@ function PayListingForm() {
       toast({ title: "Payment successful!", description: "Your listing is now live." });
       navigate("/my-listings");
     },
+    onError: (err: Error) => {
+      toast({ title: "Payment failed", description: err.message, variant: "destructive" });
+    },
   });
+
+  if (!validId) {
+    return <div className="container mx-auto px-4 py-20 text-center text-muted-foreground">Listing not found</div>;
+  }
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto px-4 py-10 max-w-sm">
+        <Skeleton className="h-64 rounded-lg" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return <QueryError message="Could not load listing" onRetry={() => refetch()} />;
+  }
+
+  if (listing && user && user.id !== listing.owner_id) {
+    return <div className="container mx-auto px-4 py-20 text-center text-muted-foreground">Not authorized</div>;
+  }
 
   if (listing?.paid) {
     return (
@@ -71,27 +98,25 @@ function PayListingForm() {
           {listing && (
             <div className="rounded-lg bg-muted p-3 text-sm">
               <p className="font-medium">{listing.title}</p>
-              <p className="text-muted-foreground">${Number(listing.price).toFixed(0)}</p>
+              <p className="text-muted-foreground">{formatListingPrice(listing.price)}</p>
             </div>
           )}
           <div className="text-center">
-            <p className="text-3xl font-bold">$5.00</p>
+            <p className="text-3xl font-bold">${centsToDollarString(LISTING_FEE_CENTS)}</p>
             <p className="text-xs text-muted-foreground">One-time listing fee</p>
           </div>
           <Button
             className="w-full"
             size="lg"
             onClick={() => payMutation.mutate()}
-            disabled={payMutation.isPending}
+            disabled={payMutation.isPending || !listing}
           >
             {payMutation.isPending ? "Processing..." : "Pay $5 (Demo)"}
           </Button>
           <p className="text-xs text-center text-muted-foreground">
             This is a demo payment. No real charges will be made.
           </p>
-          <p className="text-xs text-center text-muted-foreground">
-            Demo flow — Stripe can be plugged in later.
-          </p>
+          <p className="text-xs text-center text-muted-foreground">Demo flow — Stripe can be plugged in later.</p>
         </CardContent>
       </Card>
     </div>

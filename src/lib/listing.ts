@@ -18,3 +18,26 @@ export function getListingImageUrl(
   if (listing.title === "Vintage Leather Backpack") return "/vintage-leather-backpack.png";
   return "/placeholder.svg";
 }
+
+export const LISTING_CATEGORIES = [
+  "Electronics",
+  "Vehicles",
+  "Furniture",
+  "Clothing",
+  "Services",
+  "Other",
+] as const;
+
+export type ListingCategory = (typeof LISTING_CATEGORIES)[number];
+
+export const SEED_LISTING = {
+  title: "Vintage Leather Backpack",
+  description:
+    "Beautiful handcrafted vintage leather backpack in great condition. Perfect for everyday use or travel. Brown distressed leather with brass hardware.",
+  price: 45,
+  category: "Clothing",
+  city: "Portland",
+  images: [] as string[],
+  status: "active",
+  paid: true,
+};

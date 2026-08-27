@@ -1,15 +1,25 @@
 import { createClient } from "@supabase/supabase-js";
 
-const url = process.env.VITE_SUPABASE_URL || "https://worggtodbdjldaipbtba.supabase.co";
-const anonKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const url = process.env.VITE_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const email = process.env.SEED_EMAIL;
+const password = process.env.SEED_PASSWORD;
 
-if (!serviceKey) {
-  console.error("Set SUPABASE_SERVICE_ROLE_KEY (from Supabase dashboard or: supabase projects api-keys)");
+const missing = [
+  !url && "VITE_SUPABASE_URL",
+  !serviceKey && "SUPABASE_SERVICE_ROLE_KEY",
+  !email && "SEED_EMAIL",
+  !password && "SEED_PASSWORD",
+].filter(Boolean);
+
+if (missing.length) {
+  console.error(`Missing required env: ${missing.join(", ")}`);
   process.exit(1);
 }
 
-const supabase = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+const supabase = createClient(url, serviceKey, {
+  auth: { autoRefreshToken: false, persistSession: false },
+});
 
 const seedListing = {
   title: "Vintage Leather Backpack",
@@ -24,9 +34,6 @@ const seedListing = {
 };
 
 async function main() {
-  const email = process.env.SEED_EMAIL || "sneve1@example.com";
-  const password = process.env.SEED_PASSWORD || "password123";
-
   const { data: userData, error: createError } = await supabase.auth.admin.createUser({
     email,
     password,
@@ -35,34 +42,65 @@ async function main() {
   });
 
   if (createError) {
-    if (createError.message.includes("already been registered")) {
-      const { data: list } = await supabase.from("listings").select("id").limit(1);
-      if (list?.length) {
-        console.log("User and listing already exist.");
-      } else {
-        const { data: users } = await supabase.auth.admin.listUsers();
-        const u = users?.users?.find((x) => x.email === email);
-        if (u) {
-          await supabase.from("listings").insert({ owner_id: u.id, ...seedListing });
-          console.log("Added Vintage Leather Backpack for existing user.");
-        }
-      }
-    } else {
+    if (!createError.message.includes("already been registered")) {
       console.error("Create user error:", createError.message);
       process.exit(1);
     }
-  } else if (userData?.user) {
-    await supabase.from("profiles").upsert(
-      { id: userData.user.id, display_name: "sneve1" },
-      { onConflict: "id" }
-    );
-    await supabase.from("listings").insert({ owner_id: userData.user.id, ...seedListing });
-    console.log("Created user and Vintage Leather Backpack listing.");
+
+    const { data: list, error: listError } = await supabase.from("listings").select("id").limit(1);
+    if (listError) {
+      console.error("List listings error:", listError.message);
+      process.exit(1);
+    }
+    if (list?.length) {
+      console.log("User and listing already exist.");
+      return;
+    }
+
+    const { data: users, error: usersError } = await supabase.auth.admin.listUsers();
+    if (usersError) {
+      console.error("List users error:", usersError.message);
+      process.exit(1);
+    }
+    const u = users?.users?.find((x) => x.email === email);
+    if (!u) {
+      console.error("Existing user not found for SEED_EMAIL");
+      process.exit(1);
+    }
+    const { error: insertError } = await supabase.from("listings").insert({ owner_id: u.id, ...seedListing });
+    if (insertError) {
+      console.error("Insert listing error:", insertError.message);
+      process.exit(1);
+    }
+    console.log("Added Vintage Leather Backpack for existing user.");
+    return;
   }
 
-  console.log("\nSign in at http://localhost:8080/auth with:");
-  console.log("  Email:", email);
-  console.log("  Password:", password);
+  if (!userData?.user) {
+    console.error("Create user returned no user");
+    process.exit(1);
+  }
+
+  const { error: profileError } = await supabase.from("profiles").upsert(
+    { id: userData.user.id, display_name: "sneve1" },
+    { onConflict: "id" }
+  );
+  if (profileError) {
+    console.error("Profile upsert error:", profileError.message);
+    process.exit(1);
+  }
+
+  const { error: insertError } = await supabase
+    .from("listings")
+    .insert({ owner_id: userData.user.id, ...seedListing });
+  if (insertError) {
+    console.error("Insert listing error:", insertError.message);
+    process.exit(1);
+  }
+  console.log("Created user and Vintage Leather Backpack listing.");
 }
 
-main();
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
