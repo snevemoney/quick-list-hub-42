@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAuth } from "@/lib/auth";
 import { Navigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
+import { authSchema } from "@/lib/validation";
 
 export default function Auth() {
   const { user } = useAuth();
@@ -19,19 +20,35 @@ export default function Auth() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    const parsed = authSchema.safeParse({ email, password });
+    if (!parsed.success) {
+      toast({
+        title: "Check your details",
+        description: parsed.error.errors[0]?.message ?? "Invalid email or password",
+        variant: "destructive",
+      });
+      return;
+    }
 
+    setLoading(true);
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { error } = await supabase.auth.signUp({
+          email: parsed.data.email,
+          password: parsed.data.password,
+        });
         if (error) throw error;
         toast({ title: "Account created!", description: "You're now signed in." });
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({
+          email: parsed.data.email,
+          password: parsed.data.password,
+        });
         if (error) throw error;
       }
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Sign in failed";
+      toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -50,11 +67,28 @@ export default function Auth() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@example.com" />
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                maxLength={254}
+                placeholder="you@example.com"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" minLength={6} />
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder="••••••••"
+                minLength={6}
+                maxLength={72}
+              />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Loading..." : isSignUp ? "Sign Up" : "Sign In"}
@@ -62,7 +96,11 @@ export default function Auth() {
           </form>
           <p className="mt-4 text-center text-sm text-muted-foreground">
             {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
-            <button type="button" className="text-primary hover:underline font-medium" onClick={() => setIsSignUp(!isSignUp)}>
+            <button
+              type="button"
+              className="text-primary hover:underline font-medium"
+              onClick={() => setIsSignUp(!isSignUp)}
+            >
               {isSignUp ? "Sign in" : "Sign up"}
             </button>
           </p>

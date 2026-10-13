@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { Plus, User, MessageSquare, LayoutList, Shield, LogOut, Menu, X } from "lucide-react";
+import { Plus, MessageSquare, LayoutList, LogOut, Menu, X } from "lucide-react";
 import { useState } from "react";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
